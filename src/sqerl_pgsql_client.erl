@@ -110,9 +110,6 @@ execute_prepared({#prepared_statement{} = PrepStmt, Statements}, Parameters,
             epgsql:sync(Cn),
             {ok, Count};
         {ok, RowData} when is_list(RowData) ->
-            % query results, read-only, so no sync needed...?
-            % call it just in case, it shouldn't hurt
-            epgsql:sync(Cn),
             Rows = unpack_rows(PrepStmt, RowData),
             TRows = sqerl_transformers:by_column_name(Rows, CTrans),
             {ok, TRows};
