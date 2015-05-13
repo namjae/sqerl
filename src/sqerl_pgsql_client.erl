@@ -103,22 +103,21 @@ execute_prepared({#prepared_statement{} = PrepStmt, Statements}, Parameters,
                  #state{cn = Cn, ctrans = CTrans} = State) ->
     Stmt = PrepStmt#prepared_statement.stmt,
     TParameters = input_transforms(Parameters, PrepStmt, State),
-    ok = epgsql:bind(Cn, Stmt, TParameters),
-    Result = try epgsql:execute(Cn, Stmt) of
-        {ok, Count} when is_integer(Count) ->
+    Result = try epgsql:execute_batch(Cn, [{Stmt, TParameters}]) of
+        % NOTE we ignore additional data for now, but this opens up the possibility of multi-part
+        % queries and response handling in one execution.
+        [{ok, Count}|_] when is_integer(Count) ->
             % returned for update, delete, so sync db
-            epgsql:sync(Cn),
             {ok, Count};
-        {ok, RowData} when is_list(RowData) ->
+        [{ok, RowData}|_] when is_list(RowData) ->
             Rows = unpack_rows(PrepStmt, RowData),
             TRows = sqerl_transformers:by_column_name(Rows, CTrans),
             {ok, TRows};
-        {ok, Count, RowData} when is_list(RowData), is_integer(Count) ->
-            epgsql:sync(Cn),
+        [{ok, Count, RowData}|_] when is_list(RowData), is_integer(Count) ->
             Rows = unpack_rows(PrepStmt, RowData),
             TRows = sqerl_transformers:by_column_name(Rows, CTrans),
             {ok, Count, TRows};
-        {error, ?EPGSQL_TIMEOUT_ERROR} ->
+        [{error, ?EPGSQL_TIMEOUT_ERROR}|_] ->
             epgsql:sync(Cn),
             {error, timeout};
         Other ->
